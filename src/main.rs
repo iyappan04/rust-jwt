@@ -1,6 +1,6 @@
 
-use actix_web::{web, App, HttpServer, HttpResponse, Error};
-use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey};
+use actix_web::{web, App, HttpServer,HttpRequest, HttpResponse, Error};
+use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey};
 use serde::{Serialize, Deserialize};
 
 use mongodb::{ Client, options::ClientOptions , Collection};
@@ -52,6 +52,24 @@ async fn login_user(user: web::Json<User>, client: web::Data<Client>) -> HttpRes
     }
 }
 
+async fn protected_route(req: HttpRequest) -> HttpResponse {
+
+    let token = req.headers().get("Authorization").unwrap().to_str().unwrap().replace("Bearer ", "");
+
+    match decode::<Claims>(&token, &DecodingKey::from_secret("ASORHFBNWOT".as_ref()), &Validation::new(Algorithm::HS256)) {
+        Ok(decoded) => {
+            println!("Decoded token: {:?}", decoded); // Print decoded token for debugging
+            HttpResponse::Ok().body("Access granted!")
+        },
+        Err(err) => {
+            println!("Token verification failed: {:?}", err); // Print error for debugging
+            HttpResponse::Unauthorized().body("Access denied!")
+        },
+        // Ok(_) => HttpResponse::Ok().body("Access granted!"),
+        // Err(_) => HttpResponse::Unauthorized().body("Access denied!"),
+    }
+}
+
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -65,6 +83,7 @@ async fn main() -> std::io::Result<()> {
             .data(client.clone())
             .route("/register", web::post().to(register_user))
             .route("/login", web::post().to(login_user))
+            .route("/protected", web::get().to(protected_route))
     })
     .bind("127.0.0.1:8080")?
     .run()
